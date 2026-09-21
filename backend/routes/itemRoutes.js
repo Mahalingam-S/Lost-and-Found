@@ -1,0 +1,24 @@
+const express = require('express');
+const router = express.Router();
+const itemController = require('../controllers/itemController');
+const authMiddleware = require('../middleware/authMiddleware');
+
+// GET /api/items
+router.get('/', itemController.getItems);
+
+// GET /api/items/my-posts
+router.get('/my-posts', authMiddleware, itemController.getMyPosts);
+
+// GET /api/items/:id
+router.get('/:id', itemController.getItemById);
+
+// POST /api/items
+router.post('/', authMiddleware, itemController.createItem);
+
+// PUT /api/items/:id
+router.put('/:id', authMiddleware, itemController.updateItem);
+
+// DELETE /api/items/:id
+router.delete('/:id', authMiddleware, itemController.deleteItem);
+
+module.exports = router;
