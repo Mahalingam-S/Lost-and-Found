@@ -1,6 +1,6 @@
-<<<<<<< HEAD
+
 # Lost-and-Found
-=======
+
 # 🔍 Campus Lost & Found Mobile App
 
 An intuitive, mobile-first Web Application for university students and staff to quickly report, locate, and claim lost and found belongings across campus.
