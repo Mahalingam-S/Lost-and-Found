@@ -204,11 +204,12 @@ exports.updateItem = async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
     const userId = req.user.userId;
+    const userPhone = req.user.phone;
 
     if (getIsConnected()) {
       let item = await Item.findById(id);
       if (!item) return res.status(404).json({ message: 'Item not found' });
-      if (item.userId !== userId) {
+      if (item.userId !== userId && item.userPhone !== userPhone) {
         return res.status(403).json({ message: 'Unauthorized to edit this item' });
       }
       item = await Item.findByIdAndUpdate(id, updates, { new: true });
@@ -216,7 +217,9 @@ exports.updateItem = async (req, res) => {
     } else {
       let item = memoryItems.get(id);
       if (!item) return res.status(404).json({ message: 'Item not found' });
-      
+      if (item.userId && item.userId !== userId && item.userPhone !== userPhone) {
+        return res.status(403).json({ message: 'Unauthorized to edit this item' });
+      }
       Object.assign(item, updates);
       memoryItems.set(id, item);
       return res.status(200).json({ success: true, message: 'Item updated', item });
@@ -231,11 +234,12 @@ exports.deleteItem = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.userId;
+    const userPhone = req.user.phone;
 
     if (getIsConnected()) {
       const item = await Item.findById(id);
       if (!item) return res.status(404).json({ message: 'Item not found' });
-      if (item.userId !== userId) {
+      if (item.userId !== userId && item.userPhone !== userPhone) {
         return res.status(403).json({ message: 'Unauthorized to delete this item' });
       }
       await Item.findByIdAndDelete(id);
@@ -243,6 +247,9 @@ exports.deleteItem = async (req, res) => {
     } else {
       const item = memoryItems.get(id);
       if (!item) return res.status(404).json({ message: 'Item not found' });
+      if (item.userId && item.userId !== userId && item.userPhone !== userPhone) {
+        return res.status(403).json({ message: 'Unauthorized to delete this item' });
+      }
       memoryItems.delete(id);
       return res.status(200).json({ success: true, message: 'Item deleted' });
     }

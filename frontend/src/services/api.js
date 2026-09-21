@@ -11,6 +11,9 @@ const getHeaders = () => {
   return headers;
 };
 
+// Client session memory storage for newly added items
+const localAddedItems = [];
+
 // Demo local fallback user storage
 const demoUser = {
   _id: 'usr_demo_active',
@@ -106,14 +109,21 @@ export const getItems = async ({ search = '', type = '', category = '', status =
 
     const res = await fetch(`${API_BASE}/items?${params.toString()}`);
     if (!res.ok) throw new Error('Network response not ok');
-    return await res.json();
+    const data = await res.json();
+    if (data.success && data.items) {
+      // Merge local added items with server items
+      const merged = [...localAddedItems, ...data.items];
+      const uniqueItems = Array.from(new Map(merged.map(i => [i._id, i])).values());
+      return { ...data, count: uniqueItems.length, items: uniqueItems };
+    }
+    return data;
   } catch (err) {
-    // Return sample seeded items if backend fetch is unreachable
     let sampleItems = [
+      ...localAddedItems,
       {
         _id: 'item_1',
         title: 'Sony WH-1000XM4 Headphones',
-        description: 'Black Sony noise cancelling headphones found near the central library study desk on 2nd floor.',
+        description: 'Black Sony noise cancelling headphones found near central library study desk on 2nd floor.',
         category: 'Electronics',
         type: 'FOUND',
         image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop&q=80',
@@ -184,6 +194,9 @@ export const getItems = async ({ search = '', type = '', category = '', status =
 };
 
 export const getItemById = async (id) => {
+  const localFind = localAddedItems.find(i => i._id === id);
+  if (localFind) return { success: true, item: localFind };
+
   try {
     const res = await fetch(`${API_BASE}/items/${id}`);
     if (!res.ok) throw new Error('Network response not ok');
@@ -201,7 +214,13 @@ export const getMyPosts = async () => {
       headers: getHeaders()
     });
     if (!res.ok) throw new Error('Network response not ok');
-    return await res.json();
+    const data = await res.json();
+    if (data.success && data.items) {
+      const merged = [...localAddedItems, ...data.items];
+      const uniqueItems = Array.from(new Map(merged.map(i => [i._id, i])).values());
+      return { ...data, count: uniqueItems.length, items: uniqueItems };
+    }
+    return data;
   } catch (err) {
     const itemsRes = await getItems();
     return { success: true, count: itemsRes.items.length, items: itemsRes.items };
@@ -209,6 +228,22 @@ export const getMyPosts = async () => {
 };
 
 export const createItem = async (itemData) => {
+  let userDetails = demoUser;
+  try {
+    const userJson = localStorage.getItem('user');
+    if (userJson) userDetails = { ...demoUser, ...JSON.parse(userJson) };
+  } catch (e) {}
+
+  const newItem = {
+    _id: 'item_' + Date.now(),
+    ...itemData,
+    status: 'ACTIVE',
+    userId: userDetails._id || 'usr_demo_active',
+    userName: userDetails.name || 'Amrita Student',
+    userPhone: userDetails.phone || '+91 9876543210',
+    createdAt: new Date()
+  };
+
   try {
     const res = await fetch(`${API_BASE}/items`, {
       method: 'POST',
@@ -216,24 +251,26 @@ export const createItem = async (itemData) => {
       body: JSON.stringify(itemData)
     });
     if (!res.ok) throw new Error('Network response not ok');
-    return await res.json();
+    const data = await res.json();
+    const finalItem = data.item || newItem;
+    localAddedItems.unshift(finalItem);
+    return { success: true, message: 'Item posted successfully', item: finalItem };
   } catch (err) {
+    localAddedItems.unshift(newItem);
     return {
       success: true,
       message: 'Item posted successfully',
-      item: {
-        _id: 'item_' + Date.now(),
-        ...itemData,
-        status: 'ACTIVE',
-        userName: 'Amrita Student',
-        userPhone: '+91 9876543210',
-        createdAt: new Date()
-      }
+      item: newItem
     };
   }
 };
 
 export const updateItem = async (id, itemData) => {
+  const localFind = localAddedItems.find(i => i._id === id);
+  if (localFind) {
+    Object.assign(localFind, itemData);
+  }
+
   try {
     const res = await fetch(`${API_BASE}/items/${id}`, {
       method: 'PUT',
@@ -248,6 +285,11 @@ export const updateItem = async (id, itemData) => {
 };
 
 export const deleteItem = async (id) => {
+  const index = localAddedItems.findIndex(i => i._id === id);
+  if (index !== -1) {
+    localAddedItems.splice(index, 1);
+  }
+
   try {
     const res = await fetch(`${API_BASE}/items/${id}`, {
       method: 'DELETE',

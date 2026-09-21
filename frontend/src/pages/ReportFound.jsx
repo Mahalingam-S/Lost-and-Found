@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { PlusCircle, MapPin, Calendar, ArrowLeft, Check, UploadCloud, X } from 'lucide-react';
 import { createItem } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { compressImage } from '../utils/compressImage';
 
 const CATEGORIES = ['Electronics', 'Books', 'ID Cards', 'Bags', 'Clothing', 'Keys', 'Others'];
 
@@ -23,14 +24,15 @@ export default function ReportFound({ onSuccess, onCancel }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImage(reader.result);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressImage(file);
+        if (compressed) setImage(compressed);
+      } catch (err) {
+        console.error('Image processing error:', err);
+      }
     }
   };
 
