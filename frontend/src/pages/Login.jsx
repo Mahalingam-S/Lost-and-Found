@@ -3,7 +3,7 @@ import { Smartphone, ArrowRight, ShieldCheck } from 'lucide-react';
 import { sendOTP } from '../services/api';
 
 export default function Login({ onOtpSent }) {
-  const [phone, setPhone] = useState('+91 9876543210');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -84,7 +84,7 @@ export default function Login({ onOtpSent }) {
           <input
             type="tel"
             className="input-field"
-            placeholder="+91 9876543210"
+            placeholder="Enter 10-digit mobile number"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             style={{ marginBottom: '18px', fontSize: '0.95rem', letterSpacing: '0.5px' }}

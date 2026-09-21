@@ -17,9 +17,9 @@ const localAddedItems = [];
 // Demo local fallback user storage
 const demoUser = {
   _id: 'usr_demo_active',
-  name: 'Amrita Student',
-  phone: '+91 9876543210',
-  email: 'student@amrita.edu'
+  name: 'Campus Student',
+  phone: '',
+  email: ''
 };
 
 export const sendOTP = async (phone) => {
@@ -68,8 +68,8 @@ export const verifyOTP = async (phone, otp) => {
     console.warn('Backend API connection warning, verifying via fallback token', err);
     const fallbackUser = savedProfile || {
       ...demoUser,
-      _id: 'usr_' + cleanPhone.replace(/\D/g, ''),
-      phone: cleanPhone || '+91 9876543210'
+      _id: 'usr_' + (cleanPhone ? cleanPhone.replace(/\D/g, '') : Date.now()),
+      phone: cleanPhone || ''
     };
     localStorage.setItem(`profile_${cleanPhone}`, JSON.stringify(fallbackUser));
     localStorage.setItem('user', JSON.stringify(fallbackUser));
