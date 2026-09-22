@@ -155,44 +155,64 @@ export default function OTP({ phone, demoOtp, onUpdateDemoOtp, onSuccess, onBack
           Sent to <strong style={{ color: '#4f46e5' }}>{phone || 'your phone'}</strong>
         </p>
 
-        {/* Demo OTP Alert Box with Auto-fill CTA */}
-        <div style={{
-          background: 'rgba(79, 70, 229, 0.06)',
-          border: '1px dashed #4f46e5',
-          color: '#4f46e5',
-          padding: '8px 14px',
-          borderRadius: '12px',
-          fontSize: '0.8rem',
-          fontWeight: 600,
-          marginBottom: '18px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '8px'
-        }}>
-          <span>
-            ✨ Code: <strong style={{ color: '#0f172a', letterSpacing: '1.5px', fontSize: '0.9rem' }}>{demoOtp || '123456'}</strong>
-          </span>
-          <button
-            type="button"
-            onClick={handleAutoFill}
-            style={{
-              background: '#4f46e5',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '6px',
-              padding: '4px 10px',
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '3px'
-            }}
-          >
-            <Zap size={12} /> Auto-fill
-          </button>
-        </div>
+        {demoOtp ? (
+          /* Demo OTP Alert Box with Auto-fill CTA (Sandbox Mode) */
+          <div style={{
+            background: 'rgba(79, 70, 229, 0.06)',
+            border: '1px dashed #4f46e5',
+            color: '#4f46e5',
+            padding: '8px 14px',
+            borderRadius: '12px',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            marginBottom: '18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px'
+          }}>
+            <span>
+              ✨ Sandbox Code: <strong style={{ color: '#0f172a', letterSpacing: '1.5px', fontSize: '0.9rem' }}>{demoOtp}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={handleAutoFill}
+              style={{
+                background: '#4f46e5',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '4px 10px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '3px'
+              }}
+            >
+              <Zap size={12} /> Auto-fill
+            </button>
+          </div>
+        ) : (
+          /* Secure Real SMS Notification Badge */
+          <div style={{
+            background: 'rgba(16, 185, 129, 0.08)',
+            border: '1px solid rgba(16, 185, 129, 0.25)',
+            color: '#047857',
+            padding: '10px 14px',
+            borderRadius: '12px',
+            fontSize: '0.78rem',
+            fontWeight: 600,
+            marginBottom: '18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px'
+          }}>
+            🔒 Verification code sent via SMS to your mobile. Please check your phone messages.
+          </div>
+        )}
 
         {error && (
           <div style={{

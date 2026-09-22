@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { getIsConnected } = require('../config/db');
+const { sendSMS, isRealSmsConfigured } = require('../services/smsService');
 
 // In-memory user store fallback
 const memoryUsers = new Map();
@@ -21,12 +22,25 @@ exports.sendOTP = async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(cleanPhone, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
 
-    console.log(`[OTP SENT] Phone: ${cleanPhone} -> OTP: ${otp}`);
-    return res.status(200).json({
+    console.log(`[OTP GENERATED] Phone: ${cleanPhone} -> OTP: ${otp}`);
+
+    // Dispatch SMS via real SMS Gateway
+    await sendSMS(cleanPhone, otp);
+
+    const realSmsActive = isRealSmsConfigured();
+
+    const responsePayload = {
       success: true,
-      message: 'OTP sent successfully',
-      demoOtp: otp
-    });
+      message: realSmsActive ? 'Verification code sent to your mobile phone via SMS' : 'OTP sent successfully',
+      isRealSms: realSmsActive
+    };
+
+    // Only include demoOtp if real SMS gateway is not active (sandbox/dev mode)
+    if (!realSmsActive) {
+      responsePayload.demoOtp = otp;
+    }
+
+    return res.status(200).json(responsePayload);
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
