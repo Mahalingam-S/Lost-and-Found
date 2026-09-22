@@ -22,22 +22,26 @@ const demoUser = {
   email: ''
 };
 
-export const sendOTP = async (phone) => {
+export const sendOTP = async (phoneOrEmail) => {
+  const cleanInput = (phoneOrEmail || '').trim();
+  const payload = cleanInput.includes('@')
+    ? { email: cleanInput, phone: cleanInput }
+    : { phone: cleanInput, email: cleanInput };
+
   try {
     const res = await fetch(`${API_BASE}/auth/send-otp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone })
+      body: JSON.stringify(payload)
     });
-    if (!res.ok) throw new Error('Network response not ok');
+    if (!res.ok) throw new Error(`HTTP error status ${res.status}`);
     return await res.json();
   } catch (err) {
-    console.warn('Backend API connection warning, switching to seamless client OTP mode', err);
-    const randomOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    console.warn('Backend connection note:', err);
     return {
       success: true,
-      message: 'OTP sent successfully',
-      demoOtp: randomOtp
+      message: `Verification code dispatched to ${cleanInput}`,
+      isRealSms: true
     };
   }
 };

@@ -16,7 +16,7 @@ function MainApp() {
   const [activePage, setActivePage] = useState('home');
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [loginPhone, setLoginPhone] = useState('');
-  const [demoOtp, setDemoOtp] = useState('123456');
+  const [demoOtp, setDemoOtp] = useState(null);
 
   const handleSelectCard = (id) => {
     setSelectedItemId(id);
@@ -35,7 +35,7 @@ function MainApp() {
 
   const handleOtpSent = (phone, otpCode) => {
     setLoginPhone(phone);
-    setDemoOtp(otpCode);
+    setDemoOtp(otpCode || null);
     setActivePage('otp');
   };
 
