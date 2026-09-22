@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
-import { Smartphone, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Smartphone, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
 import { sendOTP } from '../services/api';
 
 export default function Login({ onOtpSent }) {
-  const [phone, setPhone] = useState('');
+  const [accountInput, setAccountInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!phone || phone.length < 10) {
-      setError('Please enter a valid mobile number');
+    const cleanInput = accountInput.trim();
+    if (!cleanInput || cleanInput.length < 5) {
+      setError('Please enter a valid mobile number or university email');
       return;
     }
 
@@ -18,11 +19,11 @@ export default function Login({ onOtpSent }) {
     setError('');
 
     try {
-      const res = await sendOTP(phone);
+      const res = await sendOTP(cleanInput);
       if (res.success) {
-        onOtpSent(phone, res.demoOtp || '123456');
+        onOtpSent(cleanInput, res.demoOtp || '');
       } else {
-        setError(res.message || 'Failed to send OTP');
+        setError(res.message || 'Failed to send verification code');
       }
     } catch (err) {
       setError('Server connection error. Please try again.');
@@ -45,14 +46,14 @@ export default function Login({ onOtpSent }) {
           margin: '0 auto 14px',
           boxShadow: '0 4px 16px rgba(79, 70, 229, 0.3)'
         }}>
-          <Smartphone size={26} color="#ffffff" />
+          <Smartphone size={24} color="#ffffff" />
         </div>
 
         <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0f172a', marginBottom: '4px' }}>
           Campus Student Login
         </h2>
         <p style={{ color: '#64748b', fontSize: '0.82rem', marginBottom: '20px', fontWeight: 500 }}>
-          Enter mobile number to sign in or create account
+          Enter mobile number or university email to receive code
         </p>
 
         {error && (
@@ -78,16 +79,16 @@ export default function Login({ onOtpSent }) {
             color: '#0f172a',
             marginBottom: '6px'
           }}>
-            📱 Mobile Phone Number
+            📱 Mobile Phone or ✉️ University Email
           </label>
-          
+
           <input
-            type="tel"
+            type="text"
             className="input-field"
-            placeholder="Enter 10-digit mobile number"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            style={{ marginBottom: '18px', fontSize: '0.95rem', letterSpacing: '0.5px' }}
+            placeholder="student@amrita.edu or 9876543210"
+            value={accountInput}
+            onChange={(e) => setAccountInput(e.target.value)}
+            style={{ marginBottom: '18px', fontSize: '0.92rem', letterSpacing: '0.3px' }}
             required
           />
 
@@ -97,9 +98,9 @@ export default function Login({ onOtpSent }) {
             disabled={loading}
             style={{ width: '100%', padding: '12px', fontSize: '0.92rem' }}
           >
-            {loading ? 'Sending OTP...' : (
+            {loading ? 'Sending Code...' : (
               <>
-                Send OTP Code <ArrowRight size={16} />
+                Send Verification Code <ArrowRight size={16} />
               </>
             )}
           </button>

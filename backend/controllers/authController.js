@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { getIsConnected } = require('../config/db');
 const { sendSMS, isRealSmsConfigured } = require('../services/smsService');
+const { sendOTPEmail } = require('../services/emailService');
 
 // In-memory user store fallback
 const memoryUsers = new Map();
@@ -12,30 +13,41 @@ const JWT_SECRET = process.env.JWT_SECRET || 'campus_lost_found_secret_key_2026_
 // POST /api/auth/send-otp
 exports.sendOTP = async (req, res) => {
   try {
-    const { phone } = req.body;
-    if (!phone) {
-      return res.status(400).json({ message: 'Mobile number is required' });
+    const { phone, email } = req.body;
+    const identifier = (email || phone || '').trim();
+
+    if (!identifier) {
+      return res.status(400).json({ message: 'Mobile number or Email is required' });
     }
 
-    const cleanPhone = phone.trim();
     // Generate dynamic 6-digit random OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore.set(cleanPhone, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
+    otpStore.set(identifier, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
 
-    console.log(`[OTP GENERATED] Phone: ${cleanPhone} -> OTP: ${otp}`);
+    const phoneDigits = identifier.replace(/\D/g, '');
+    if (phoneDigits) {
+      otpStore.set(phoneDigits, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
+    }
 
-    // Dispatch SMS via real SMS Gateway
-    await sendSMS(cleanPhone, otp);
+    console.log(`[OTP GENERATED] Target: ${identifier} -> OTP: ${otp}`);
+
+    // Dispatch 6-digit OTP email
+    await sendOTPEmail(identifier, otp);
+
+    // Dispatch SMS Gateway if configured
+    await sendSMS(identifier, otp);
 
     const realSmsActive = isRealSmsConfigured();
 
     const responsePayload = {
       success: true,
-      message: realSmsActive ? 'Verification code sent to your mobile phone via SMS' : 'OTP sent successfully',
+      message: identifier.includes('@')
+        ? `Verification code sent to email inbox (${identifier})`
+        : `Verification code sent to ${identifier}`,
       isRealSms: realSmsActive
     };
 
-    // Only include demoOtp if real SMS gateway is not active (sandbox/dev mode)
+    // Only include demoOtp if real SMS is not configured
     if (!realSmsActive) {
       responsePayload.demoOtp = otp;
     }
