@@ -1,26 +1,69 @@
-import React, { useState } from 'react';
-import { KeyRound, ArrowRight, RefreshCw } from 'lucide-react';
-import { verifyOTP } from '../services/api';
+import React, { useState, useEffect } from 'react';
+import { KeyRound, ArrowRight, RefreshCw, Zap } from 'lucide-react';
+import { sendOTP, verifyOTP } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-export default function OTP({ phone, demoOtp, onSuccess, onBack }) {
-  const [otp, setOtp] = useState(['1', '2', '3', '4', '5', '6']);
+export default function OTP({ phone, demoOtp, onUpdateDemoOtp, onSuccess, onBack }) {
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendTimer, setResendTimer] = useState(30);
   const [error, setError] = useState('');
   const [resendMsg, setResendMsg] = useState('');
   const { login } = useAuth();
 
+  // Auto-focus first input on mount
+  useEffect(() => {
+    const firstInput = document.getElementById('otp-input-0');
+    if (firstInput) firstInput.focus();
+  }, []);
+
+  // Countdown timer for resend button
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const interval = setInterval(() => {
+      setResendTimer((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
   const handleOtpChange = (index, value) => {
-    if (value.length > 1) value = value.slice(-1);
+    // Only accept numeric characters
+    const cleanVal = value.replace(/\D/g, '');
+    if (cleanVal.length > 1) {
+      handlePasteValue(cleanVal);
+      return;
+    }
+
     const newOtp = [...otp];
-    newOtp[index] = value;
+    newOtp[index] = cleanVal;
     setOtp(newOtp);
 
     // Auto-focus next input
-    if (value && index < 5) {
+    if (cleanVal && index < 5) {
       const nextInput = document.getElementById(`otp-input-${index + 1}`);
       if (nextInput) nextInput.focus();
     }
+  };
+
+  const handlePasteValue = (pastedText) => {
+    const digits = pastedText.replace(/\D/g, '').slice(0, 6).split('');
+    if (digits.length === 0) return;
+    const newOtp = ['', '', '', '', '', ''];
+    digits.forEach((d, idx) => {
+      newOtp[idx] = d;
+    });
+    setOtp(newOtp);
+
+    const focusIdx = Math.min(digits.length, 5);
+    const targetInput = document.getElementById(`otp-input-${focusIdx}`);
+    if (targetInput) targetInput.focus();
+  };
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text');
+    handlePasteValue(pastedData);
   };
 
   const handleKeyDown = (index, e) => {
@@ -30,11 +73,43 @@ export default function OTP({ phone, demoOtp, onSuccess, onBack }) {
     }
   };
 
+  const handleAutoFill = () => {
+    const code = (demoOtp || '123456').toString().split('');
+    const newOtp = ['', '', '', '', '', ''];
+    code.forEach((d, idx) => {
+      if (idx < 6) newOtp[idx] = d;
+    });
+    setOtp(newOtp);
+    const lastInput = document.getElementById('otp-input-5');
+    if (lastInput) lastInput.focus();
+  };
+
+  const handleResend = async () => {
+    if (resendTimer > 0 || resendLoading) return;
+    setResendLoading(true);
+    setError('');
+
+    try {
+      const res = await sendOTP(phone);
+      const newCode = res.demoOtp || Math.floor(100000 + Math.random() * 900000).toString();
+      if (onUpdateDemoOtp) {
+        onUpdateDemoOtp(newCode);
+      }
+      setResendMsg(`New 6-digit OTP code sent: ${newCode}`);
+      setResendTimer(30);
+      setTimeout(() => setResendMsg(''), 5000);
+    } catch (err) {
+      setError('Failed to resend verification code');
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const fullOtp = otp.join('');
     if (fullOtp.length < 6) {
-      setError('Please enter complete 6-digit OTP');
+      setError('Please enter complete 6-digit verification code');
       return;
     }
 
@@ -47,10 +122,10 @@ export default function OTP({ phone, demoOtp, onSuccess, onBack }) {
         login(res.user, res.token);
         onSuccess();
       } else {
-        setError(res.message || 'Verification failed');
+        setError(res.message || 'Verification failed. Please check code.');
       }
     } catch (err) {
-      setError('Server error during OTP verification.');
+      setError('Server error during verification. Try again.');
     } finally {
       setLoading(false);
     }
@@ -76,23 +151,47 @@ export default function OTP({ phone, demoOtp, onSuccess, onBack }) {
         <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0f172a', marginBottom: '4px' }}>
           Verification Code
         </h2>
-        <p style={{ color: '#64748b', fontSize: '0.8rem', marginBottom: '8px', fontWeight: 500 }}>
-          Sent to <strong style={{ color: '#4f46e5' }}>{phone}</strong>
+        <p style={{ color: '#64748b', fontSize: '0.8rem', marginBottom: '12px', fontWeight: 500 }}>
+          Sent to <strong style={{ color: '#4f46e5' }}>{phone || 'your phone'}</strong>
         </p>
 
-        {/* Demo OTP Alert Box */}
+        {/* Demo OTP Alert Box with Auto-fill CTA */}
         <div style={{
-          background: 'rgba(79, 70, 229, 0.08)',
+          background: 'rgba(79, 70, 229, 0.06)',
           border: '1px dashed #4f46e5',
           color: '#4f46e5',
-          padding: '6px 12px',
-          borderRadius: '10px',
-          fontSize: '0.78rem',
+          padding: '8px 14px',
+          borderRadius: '12px',
+          fontSize: '0.8rem',
           fontWeight: 600,
           marginBottom: '18px',
-          display: 'inline-block'
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px'
         }}>
-          ✨ Demo OTP Code: <strong style={{ color: '#0f172a', letterSpacing: '1px' }}>{demoOtp || '123456'}</strong>
+          <span>
+            ✨ Code: <strong style={{ color: '#0f172a', letterSpacing: '1.5px', fontSize: '0.9rem' }}>{demoOtp || '123456'}</strong>
+          </span>
+          <button
+            type="button"
+            onClick={handleAutoFill}
+            style={{
+              background: '#4f46e5',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '4px 10px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '3px'
+            }}
+          >
+            <Zap size={12} /> Auto-fill
+          </button>
         </div>
 
         {error && (
@@ -137,10 +236,12 @@ export default function OTP({ phone, demoOtp, onSuccess, onBack }) {
                 key={idx}
                 id={`otp-input-${idx}`}
                 type="text"
-                maxLength={1}
+                inputMode="numeric"
+                maxLength={6}
                 value={digit}
                 onChange={(e) => handleOtpChange(idx, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(idx, e)}
+                onPaste={handlePaste}
                 style={{
                   width: '38px',
                   height: '46px',
@@ -151,7 +252,8 @@ export default function OTP({ phone, demoOtp, onSuccess, onBack }) {
                   background: '#f8fafc',
                   border: digit ? '2px solid #4f46e5' : '1px solid #cbd5e1',
                   borderRadius: '10px',
-                  outline: 'none'
+                  outline: 'none',
+                  boxShadow: digit ? '0 0 0 2px rgba(79, 70, 229, 0.15)' : 'none'
                 }}
               />
             ))}
@@ -190,15 +292,13 @@ export default function OTP({ phone, demoOtp, onSuccess, onBack }) {
 
           <button
             type="button"
-            onClick={() => {
-              setResendMsg('New OTP code sent: 123456');
-              setTimeout(() => setResendMsg(''), 4000);
-            }}
+            onClick={handleResend}
+            disabled={resendTimer > 0 || resendLoading}
             style={{
               background: 'none',
               border: 'none',
-              color: '#4f46e5',
-              cursor: 'pointer',
+              color: resendTimer > 0 ? '#94a3b8' : '#4f46e5',
+              cursor: resendTimer > 0 || resendLoading ? 'not-allowed' : 'pointer',
               fontSize: '0.78rem',
               display: 'flex',
               alignItems: 'center',
@@ -207,7 +307,8 @@ export default function OTP({ phone, demoOtp, onSuccess, onBack }) {
               fontFamily: 'inherit'
             }}
           >
-            <RefreshCw size={12} /> Resend OTP
+            <RefreshCw size={12} className={resendLoading ? 'animate-spin' : ''} />
+            {resendLoading ? 'Sending...' : resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Code'}
           </button>
         </div>
       </div>

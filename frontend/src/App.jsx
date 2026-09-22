@@ -64,6 +64,7 @@ function MainApp() {
             <OTP
               phone={loginPhone}
               demoOtp={demoOtp}
+              onUpdateDemoOtp={(code) => setDemoOtp(code)}
               onSuccess={() => setActivePage('home')}
               onBack={() => setActivePage('login')}
             />

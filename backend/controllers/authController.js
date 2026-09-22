@@ -17,8 +17,8 @@ exports.sendOTP = async (req, res) => {
     }
 
     const cleanPhone = phone.trim();
-    // Static demo OTP: 123456
-    const otp = '123456';
+    // Generate dynamic 6-digit random OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(cleanPhone, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
 
     console.log(`[OTP SENT] Phone: ${cleanPhone} -> OTP: ${otp}`);
@@ -41,30 +41,44 @@ exports.verifyOTP = async (req, res) => {
     }
 
     const cleanPhone = phone.trim();
-    const storedOtpData = otpStore.get(cleanPhone);
+    const phoneDigits = cleanPhone.replace(/\D/g, '');
+    const storedOtpData = otpStore.get(cleanPhone) || Array.from(otpStore.entries()).find(([k]) => k.replace(/\D/g, '') === phoneDigits)?.[1];
 
-    // Allow 123456 or stored OTP for easy testing
-    if (otp !== '123456' && (!storedOtpData || storedOtpData.otp !== otp)) {
+    // Allow 123456 as dev fallback or validate stored non-expired OTP
+    const isValidStored = storedOtpData && storedOtpData.otp === otp && storedOtpData.expiresAt > Date.now();
+    if (otp !== '123456' && !isValidStored) {
       return res.status(400).json({ message: 'Invalid or expired OTP' });
     }
 
     let user;
     if (getIsConnected()) {
-      user = await User.findOne({ phone: cleanPhone });
+      user = await User.findOne({
+        $or: [
+          { phone: cleanPhone },
+          { phone: { $regex: phoneDigits.length >= 10 ? phoneDigits.slice(-10) : phoneDigits } }
+        ]
+      });
       if (!user) {
         user = await User.create({
-          name: name || `Campus User (${cleanPhone.slice(-4)})`,
+          name: name || `Campus User (${phoneDigits.slice(-4) || '2026'})`,
           phone: cleanPhone,
           email: email || ''
         });
+      } else if (name || email) {
+        if (name) user.name = name;
+        if (email) user.email = email;
+        await user.save();
       }
     } else {
-      if (memoryUsers.has(cleanPhone)) {
-        user = memoryUsers.get(cleanPhone);
+      const existingKey = Array.from(memoryUsers.keys()).find(k => k.replace(/\D/g, '') === phoneDigits || k === cleanPhone);
+      if (existingKey) {
+        user = memoryUsers.get(existingKey);
+        if (name) user.name = name;
+        if (email) user.email = email;
       } else {
         user = {
           _id: 'usr_' + Date.now() + Math.random().toString(36).substr(2, 4),
-          name: name || `Campus User (${cleanPhone.slice(-4)})`,
+          name: name || `Campus User (${phoneDigits.slice(-4) || '2026'})`,
           phone: cleanPhone,
           email: email || '',
           createdAt: new Date()
@@ -96,10 +110,18 @@ exports.getMe = async (req, res) => {
     const { userId, phone } = req.user;
     let user;
 
-    if (getIsConnected()) {
+    const phoneDigits = (phone || '').replace(/\D/g, '');
+
+    if (getIsConnected() && userId && userId !== 'usr_demo_active') {
       user = await User.findById(userId);
-    } else {
-      user = Array.from(memoryUsers.values()).find(u => u._id === userId || u.phone === phone);
+    }
+
+    if (!user) {
+      user = Array.from(memoryUsers.values()).find(u =>
+        u._id === userId ||
+        u.phone === phone ||
+        (phoneDigits && u.phone && u.phone.replace(/\D/g, '') === phoneDigits)
+      );
     }
 
     if (!user) {
@@ -119,14 +141,29 @@ exports.updateProfile = async (req, res) => {
     const { name, email } = req.body;
 
     let user;
-    if (getIsConnected()) {
+    if (getIsConnected() && userId && userId !== 'usr_demo_active') {
       user = await User.findByIdAndUpdate(userId, { name, email }, { new: true });
-    } else {
-      user = Array.from(memoryUsers.values()).find(u => u._id === userId || u.phone === phone);
-      if (user) {
-        if (name) user.name = name;
-        if (email) user.email = email;
-      }
+    }
+
+    const phoneDigits = (phone || '').replace(/\D/g, '');
+    const foundEntry = Array.from(memoryUsers.entries()).find(([k, v]) =>
+      v._id === userId ||
+      (phoneDigits && (k.replace(/\D/g, '') === phoneDigits || (v.phone && v.phone.replace(/\D/g, '') === phoneDigits)))
+    );
+
+    if (foundEntry) {
+      const memoryUser = foundEntry[1];
+      if (name) memoryUser.name = name;
+      if (email) memoryUser.email = email;
+      if (!user) user = memoryUser;
+    } else if (!user) {
+      user = {
+        _id: userId || 'usr_' + Date.now(),
+        name: name || 'Campus Student',
+        phone: phone || '',
+        email: email || ''
+      };
+      if (phone) memoryUsers.set(phone, user);
     }
 
     return res.status(200).json({ success: true, user });

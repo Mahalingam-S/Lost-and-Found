@@ -33,17 +33,20 @@ export const sendOTP = async (phone) => {
     return await res.json();
   } catch (err) {
     console.warn('Backend API connection warning, switching to seamless client OTP mode', err);
+    const randomOtp = Math.floor(100000 + Math.random() * 900000).toString();
     return {
       success: true,
       message: 'OTP sent successfully',
-      demoOtp: '123456'
+      demoOtp: randomOtp
     };
   }
 };
 
 export const verifyOTP = async (phone, otp) => {
   const cleanPhone = (phone || '').trim();
-  const savedProfileStr = localStorage.getItem(`profile_${cleanPhone}`);
+  const phoneDigits = cleanPhone.replace(/\D/g, '');
+
+  const savedProfileStr = localStorage.getItem(`profile_${cleanPhone}`) || (phoneDigits ? localStorage.getItem(`profile_${phoneDigits}`) : null);
   let savedProfile = null;
   if (savedProfileStr) {
     try { savedProfile = JSON.parse(savedProfileStr); } catch (e) {}
@@ -58,7 +61,18 @@ export const verifyOTP = async (phone, otp) => {
     if (!res.ok) throw new Error('Network response not ok');
     const data = await res.json();
     if (data.user) {
-      const finalUser = { ...data.user, ...(savedProfile || {}) };
+      const isDefaultName = !data.user.name || data.user.name.startsWith('Campus User');
+      const finalName = (savedProfile && savedProfile.name && isDefaultName) ? savedProfile.name : data.user.name;
+      const finalEmail = (savedProfile && savedProfile.email && !data.user.email) ? savedProfile.email : (data.user.email || savedProfile?.email || '');
+
+      const finalUser = {
+        ...data.user,
+        ...(savedProfile || {}),
+        name: finalName,
+        email: finalEmail
+      };
+
+      if (phoneDigits) localStorage.setItem(`profile_${phoneDigits}`, JSON.stringify(finalUser));
       localStorage.setItem(`profile_${cleanPhone}`, JSON.stringify(finalUser));
       localStorage.setItem('user', JSON.stringify(finalUser));
       return { ...data, user: finalUser };
@@ -68,9 +82,10 @@ export const verifyOTP = async (phone, otp) => {
     console.warn('Backend API connection warning, verifying via fallback token', err);
     const fallbackUser = savedProfile || {
       ...demoUser,
-      _id: 'usr_' + (cleanPhone ? cleanPhone.replace(/\D/g, '') : Date.now()),
+      _id: 'usr_' + (phoneDigits || Date.now()),
       phone: cleanPhone || ''
     };
+    if (phoneDigits) localStorage.setItem(`profile_${phoneDigits}`, JSON.stringify(fallbackUser));
     localStorage.setItem(`profile_${cleanPhone}`, JSON.stringify(fallbackUser));
     localStorage.setItem('user', JSON.stringify(fallbackUser));
     return {
@@ -89,6 +104,13 @@ export const getMe = async () => {
     try { savedUser = JSON.parse(savedUserStr); } catch (e) {}
   }
 
+  const phoneDigits = savedUser && savedUser.phone ? savedUser.phone.replace(/\D/g, '') : '';
+  const savedProfileStr = phoneDigits ? (localStorage.getItem(`profile_${phoneDigits}`) || localStorage.getItem(`profile_${savedUser.phone}`)) : null;
+  let savedProfile = null;
+  if (savedProfileStr) {
+    try { savedProfile = JSON.parse(savedProfileStr); } catch (e) {}
+  }
+
   try {
     const res = await fetch(`${API_BASE}/auth/me`, {
       headers: getHeaders()
@@ -96,23 +118,34 @@ export const getMe = async () => {
     if (!res.ok) throw new Error('Network response not ok');
     const data = await res.json();
     if (data.user) {
-      const finalUser = { ...data.user, ...(savedUser || {}) };
-      return { ...data, user: finalUser };
+      const isDefaultName = !data.user.name || data.user.name.startsWith('Campus User');
+      const mergedUser = {
+        ...data.user,
+        ...(savedProfile || {}),
+        ...(savedUser || {}),
+        name: (savedProfile && savedProfile.name && isDefaultName) ? savedProfile.name : (data.user.name || savedUser?.name || 'Campus Student'),
+        email: data.user.email || savedProfile?.email || savedUser?.email || ''
+      };
+      localStorage.setItem('user', JSON.stringify(mergedUser));
+      return { ...data, user: mergedUser };
     }
     return data;
   } catch (err) {
     return {
       success: true,
-      user: savedUser || demoUser
+      user: savedUser || savedProfile || demoUser
     };
   }
 };
 
 export const updateProfile = async (profileData) => {
-  const token = localStorage.getItem('token');
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
   const updatedUser = { ...demoUser, ...currentUser, ...profileData };
 
+  const phoneDigits = (updatedUser.phone || '').replace(/\D/g, '');
+  if (phoneDigits) {
+    localStorage.setItem(`profile_${phoneDigits}`, JSON.stringify(updatedUser));
+  }
   if (updatedUser.phone) {
     localStorage.setItem(`profile_${updatedUser.phone}`, JSON.stringify(updatedUser));
   }
@@ -127,7 +160,8 @@ export const updateProfile = async (profileData) => {
     if (!res.ok) throw new Error('Network response not ok');
     const data = await res.json();
     if (data.user) {
-      const merged = { ...data.user, ...profileData };
+      const merged = { ...updatedUser, ...data.user, ...profileData };
+      if (phoneDigits) localStorage.setItem(`profile_${phoneDigits}`, JSON.stringify(merged));
       if (merged.phone) localStorage.setItem(`profile_${merged.phone}`, JSON.stringify(merged));
       localStorage.setItem('user', JSON.stringify(merged));
       return { success: true, user: merged };

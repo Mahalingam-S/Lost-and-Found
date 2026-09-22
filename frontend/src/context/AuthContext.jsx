@@ -45,8 +45,19 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('user');
   };
 
-  const updateUser = (updatedUser) => {
-    setUser(prev => ({ ...prev, ...updatedUser }));
+  const updateUser = (updatedUserData) => {
+    setUser(prev => {
+      const merged = { ...(prev || {}), ...updatedUserData };
+      localStorage.setItem('user', JSON.stringify(merged));
+      const phoneDigits = (merged.phone || '').replace(/\D/g, '');
+      if (phoneDigits) {
+        localStorage.setItem(`profile_${phoneDigits}`, JSON.stringify(merged));
+      }
+      if (merged.phone) {
+        localStorage.setItem(`profile_${merged.phone}`, JSON.stringify(merged));
+      }
+      return merged;
+    });
   };
 
   return (
